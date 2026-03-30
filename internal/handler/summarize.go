@@ -17,7 +17,8 @@ type Summarizer interface {
 type FetchFunc func(ctx context.Context, url string) (string, error)
 
 type summarizeRequest struct {
-	URLs []string `json:"urls"`
+	OpenAIAPIKey string   `json:"openai_api_key"`
+	URLs         []string `json:"urls"`
 }
 
 type urlSummary struct {
@@ -33,13 +34,13 @@ type summarizeResponse struct {
 // SummarizeHandler handles POST /summarize requests.
 type SummarizeHandler struct {
 	fetch          FetchFunc
-	summarizer     Summarizer
+	newSummarizer  func(apiKey string) Summarizer
 	maxUrlsAllowed int
 }
 
 // NewSummarizeHandler creates a SummarizeHandler.
-func NewSummarizeHandler(fetch FetchFunc, s Summarizer, maxUrlsAllowed int) *SummarizeHandler {
-	return &SummarizeHandler{fetch: fetch, summarizer: s, maxUrlsAllowed: maxUrlsAllowed}
+func NewSummarizeHandler(fetch FetchFunc, newSummarizer func(apiKey string) Summarizer, maxUrlsAllowed int) *SummarizeHandler {
+	return &SummarizeHandler{fetch: fetch, newSummarizer: newSummarizer, maxUrlsAllowed: maxUrlsAllowed}
 }
 
 // ServeHTTP handles the summarize endpoint.
@@ -52,6 +53,7 @@ func NewSummarizeHandler(fetch FetchFunc, s Summarizer, maxUrlsAllowed int) *Sum
 //	@Param			request	body		summarizeRequest	true	"List of URLs to summarize"
 //	@Success		200		{object}	summarizeResponse
 //	@Failure		400		{string}	string	"invalid request: provide a non-empty urls array"
+//	@Failure		400		{string}	string	"invalid request: openai_api_key is required"
 //	@Failure		405		{string}	string	"method not allowed"
 //	@Router			/summarize [post]
 func (h *SummarizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,12 +68,18 @@ func (h *SummarizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.OpenAIAPIKey == "" {
+		http.Error(w, "invalid request: openai_api_key is required", http.StatusBadRequest)
+		return
+	}
+
 	if len(req.URLs) > h.maxUrlsAllowed {
 		msg := fmt.Sprintf("invalid request: please make sure urls is not more than %d", h.maxUrlsAllowed)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
+	sum := h.newSummarizer(req.OpenAIAPIKey)
 	results := make([]urlSummary, len(req.URLs))
 
 	var wg sync.WaitGroup
@@ -84,7 +92,7 @@ func (h *SummarizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				results[i] = urlSummary{URL: url, Error: &msg}
 				return
 			}
-			summary, err := h.summarizer.Summarize(r.Context(), text)
+			summary, err := sum.Summarize(r.Context(), text)
 			if err != nil {
 				msg := err.Error()
 				results[i] = urlSummary{URL: url, Error: &msg}

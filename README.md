@@ -34,8 +34,8 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
 PORT=8080
+MAX_ALLOWED_URLS=10
 ```
 
 **3. Run**
@@ -58,10 +58,13 @@ The app will be available at `http://localhost:8080`.
 
 Scrapes each URL and returns an AI-generated summary per URL.
 
+Each caller provides their own OpenAI API key in the request body — the server holds no credentials.
+
 **Request**
 
 ```json
 {
+  "openai_api_key": "sk-...",
   "urls": [
     "https://example.com",
     "https://another-site.com"
@@ -93,6 +96,8 @@ Scrapes each URL and returns an AI-generated summary per URL.
 | Status | Reason |
 |--------|--------|
 | `400` | Missing or empty `urls` array |
+| `400` | Missing `openai_api_key` |
+| `400` | `urls` exceeds the configured maximum |
 | `429` | Rate limit exceeded (1 request per 10 seconds per IP) |
 
 ## Rate limiting

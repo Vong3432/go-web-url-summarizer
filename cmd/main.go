@@ -14,16 +14,9 @@ import (
 	"log"
 	"os"
 	"strconv"
-
-	"github.com/Vong3432/go-web-url-summarizer/internal/summarizer"
 )
 
 func main() {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("OPENAI_API_KEY environment variable is required")
-	}
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -40,13 +33,12 @@ func main() {
 
 	app := &application{
 		port:           port,
-		summarizer:     summarizer.NewSummarizer(apiKey),
 		maxUrlsAllowed: maxUrlsAllowedInt,
 	}
 
 	router := app.mount()
 	if err := app.run(router); err != nil {
-		log.Println("Server has been shutdown due to error %s", err)
+		log.Printf("Server has been shutdown due to error %s", err)
 		os.Exit(1)
 	}
 }

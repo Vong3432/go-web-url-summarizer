@@ -22,7 +22,7 @@ func (m *mockSummarizer) Summarize(ctx context.Context, text string) (string, er
 func ptr(s string) *string { return &s }
 
 func newHandler(fetch FetchFunc, s Summarizer, maxUrlsAllowedInt int) *SummarizeHandler {
-	return NewSummarizeHandler(fetch, s, maxUrlsAllowedInt)
+	return NewSummarizeHandler(fetch, func(_ string) Summarizer { return s }, maxUrlsAllowedInt)
 }
 
 func TestServeHTTP_MethodNotAllowed(t *testing.T) {
@@ -43,8 +43,8 @@ func TestServeHTTP_InvalidBody(t *testing.T) {
 		body string
 	}{
 		{"malformed JSON", `{bad}`},
-		{"empty urls array", `{"urls":[]}`},
-		{"missing urls field", `{}`},
+		{"empty urls array", `{"openai_api_key":"sk-test","urls":[]}`},
+		{"missing urls field", `{"openai_api_key":"sk-test"}`},
 	}
 
 	for _, tc := range tests {
@@ -60,6 +60,18 @@ func TestServeHTTP_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_MissingAPIKey(t *testing.T) {
+	h := newHandler(nil, nil, 10)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize",
+		bytes.NewBufferString(`{"urls":["https://example.com"]}`)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
 func TestServeHTTP_Success(t *testing.T) {
 	fetch := func(_ context.Context, url string) (string, error) {
 		return "page text for " + url, nil
@@ -71,7 +83,7 @@ func TestServeHTTP_Success(t *testing.T) {
 	}
 
 	h := newHandler(fetch, sum, 10)
-	body := `{"urls":["https://a.com","https://b.com"]}`
+	body := `{"openai_api_key":"sk-test","urls":["https://a.com","https://b.com"]}`
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize",
 		bytes.NewBufferString(body)))
@@ -103,7 +115,7 @@ func TestServeHTTP_FetchError(t *testing.T) {
 	}
 	h := newHandler(fetch, &mockSummarizer{}, 10)
 
-	body := `{"urls":["https://bad.com"]}`
+	body := `{"openai_api_key":"sk-test","urls":["https://bad.com"]}`
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize",
 		bytes.NewBufferString(body)))
@@ -139,7 +151,7 @@ func TestServeHTTP_SummarizerError(t *testing.T) {
 	}
 	h := newHandler(fetch, sum, 10)
 
-	body := `{"urls":["https://ok.com"]}`
+	body := `{"openai_api_key":"sk-test","urls":["https://ok.com"]}`
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize",
 		bytes.NewBufferString(body)))
@@ -169,7 +181,7 @@ func TestServeHTTP_MaxURLsExceeded(t *testing.T) {
 	for i := range urls {
 		urls[i] = "https://example.com"
 	}
-	body, _ := json.Marshal(map[string]any{"urls": urls})
+	body, _ := json.Marshal(map[string]any{"openai_api_key": "sk-test", "urls": urls})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize", bytes.NewReader(body)))
@@ -191,7 +203,7 @@ func TestServeHTTP_MaxURLsAtLimit(t *testing.T) {
 	for i := range urls {
 		urls[i] = "https://example.com"
 	}
-	body, _ := json.Marshal(map[string]any{"urls": urls})
+	body, _ := json.Marshal(map[string]any{"openai_api_key": "sk-test", "urls": urls})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize", bytes.NewReader(body)))
@@ -215,7 +227,7 @@ func TestServeHTTP_PartialFailure(t *testing.T) {
 	}
 	h := newHandler(fetch, sum, 10)
 
-	body := `{"urls":["https://good.com","https://bad.com"]}`
+	body := `{"openai_api_key":"sk-test","urls":["https://good.com","https://bad.com"]}`
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/summarize",
 		bytes.NewBufferString(body)))
