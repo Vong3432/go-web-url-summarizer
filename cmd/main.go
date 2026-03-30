@@ -13,6 +13,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/Vong3432/go-web-url-summarizer/internal/summarizer"
 )
@@ -28,9 +29,19 @@ func main() {
 		port = "8080"
 	}
 
+	maxUrlsAllowed := os.Getenv("MAX_ALLOWED_URLS")
+	if maxUrlsAllowed == "" {
+		log.Fatal("MAX_ALLOWED_URLS environment variable is required")
+	}
+	maxUrlsAllowedInt, err := strconv.Atoi(maxUrlsAllowed)
+	if err != nil {
+		log.Fatal("MAX_ALLOWED_URLS environment variable must be int")
+	}
+
 	app := &application{
-		port:       port,
-		summarizer: summarizer.NewSummarizer(apiKey),
+		port:           port,
+		summarizer:     summarizer.NewSummarizer(apiKey),
+		maxUrlsAllowed: maxUrlsAllowedInt,
 	}
 
 	router := app.mount()

@@ -15,15 +15,16 @@ import (
 )
 
 type application struct {
-	port       string
-	summarizer *summarizer.Summarizer
+	port           string
+	summarizer     *summarizer.Summarizer
+	maxUrlsAllowed int
 }
 
 func (app *application) mount() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(httprate.LimitByIP(1, 10*time.Second))
-	r.Post("/summarize", handler.NewSummarizeHandler(scraper.Fetch, app.summarizer).ServeHTTP)
+	r.Post("/summarize", handler.NewSummarizeHandler(scraper.Fetch, app.summarizer, app.maxUrlsAllowed).ServeHTTP)
 	// r.Get("/swagger/*", httpSwagger.WrapHandler)
 	return r
 }

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 )
@@ -31,13 +32,14 @@ type summarizeResponse struct {
 
 // SummarizeHandler handles POST /summarize requests.
 type SummarizeHandler struct {
-	fetch      FetchFunc
-	summarizer Summarizer
+	fetch          FetchFunc
+	summarizer     Summarizer
+	maxUrlsAllowed int
 }
 
 // NewSummarizeHandler creates a SummarizeHandler.
-func NewSummarizeHandler(fetch FetchFunc, s Summarizer) *SummarizeHandler {
-	return &SummarizeHandler{fetch: fetch, summarizer: s}
+func NewSummarizeHandler(fetch FetchFunc, s Summarizer, maxUrlsAllowed int) *SummarizeHandler {
+	return &SummarizeHandler{fetch: fetch, summarizer: s, maxUrlsAllowed: maxUrlsAllowed}
 }
 
 // ServeHTTP handles the summarize endpoint.
@@ -61,6 +63,12 @@ func (h *SummarizeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req summarizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.URLs) == 0 {
 		http.Error(w, "invalid request: provide a non-empty urls array", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.URLs) > h.maxUrlsAllowed {
+		msg := fmt.Sprintf("invalid request: please make sure urls is not more than %d", h.maxUrlsAllowed)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
